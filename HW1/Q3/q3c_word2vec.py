@@ -81,12 +81,16 @@ def neg_sampling_loss_and_gradient(
 
     ### YOUR CODE HERE
     sigmoid_calc = sigmoid(np.dot(outside_vectors, center_word_vec))
-    loss = -np.log(sigmoid_calc)[outside_word_idx, :]-np.sum(np.log(1-sigmoid_calc))[neg_sample_word_indices,:]
-    grad_center_vec = -1*(1-sigmoid_calc[outside_word_idx, :])*outside_vectors[outside_word_idx,:]+\
-                      np.sum(sigmoid_calc[neg_sample_word_indices, None]*outside_vectors[neg_sample_word_indices,:], axis=1)
-    grad_outside_vecs = np.dot(center_word_vec, sigmoid_calc.T)
-    grad_outside_vecs[outside_word_idx, :] = grad_outside_vecs[outside_word_idx, :]-center_word_vec
-    grad_outside_vecs = grad_outside_vecs[indices, :]
+    sigmoid_calc_minus = 1 - sigmoid_calc
+    loss = -np.log(sigmoid_calc[outside_word_idx])-np.sum(np.log(sigmoid_calc_minus[neg_sample_word_indices]))
+    grad_center_vec = -(sigmoid_calc_minus[outside_word_idx])*outside_vectors[outside_word_idx, :] + \
+                      np.sum(outside_vectors[neg_sample_word_indices, :]*sigmoid_calc[neg_sample_word_indices, None],
+                             axis=0)
+    grad_outside_vecs = np.zeros(outside_vectors.shape)
+    grad_outside_vecs[outside_word_idx] = (sigmoid_calc[outside_word_idx]-1)*center_word_vec
+    for i in neg_sample_word_indices:
+        grad_outside_vecs[i, :] += sigmoid_calc[i]*center_word_vec
+
     ### END YOUR CODE
 
     return loss, grad_center_vec, grad_outside_vecs
