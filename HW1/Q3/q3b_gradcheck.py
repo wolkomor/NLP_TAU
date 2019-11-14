@@ -36,8 +36,15 @@ def gradcheck_naive(f, x, gradient_text=""):
         # to test cost functions with built in randomness later.
 
         ### YOUR CODE HERE:
+        eps = np.zeros(x.shape)
+        eps[ix] = h
         random.setstate(rndstate)
-        numgrad = (f(x[ix] + h)[0] - f(x[ix] - h)[0]) / (2 * h)
+        fx_plus_eps = f(x + eps)[0]
+
+        random.setstate(rndstate)
+        fx_minus_eps = f(x - eps)[0]
+
+        numgrad = (fx_plus_eps - fx_minus_eps) / (2 * h)
         ### END YOUR CODE
 
         # Compare gradients
@@ -79,4 +86,4 @@ def your_gradcheck_test():
 
 if __name__ == "__main__":
     some_test_gradcheck_basic()
-    #your_gradcheck_test()
+    your_gradcheck_test()
