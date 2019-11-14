@@ -38,7 +38,15 @@ def naive_softmax_loss_and_gradient(
     """
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    ### YOUR CODE HERE
+    softmax_calc = softmax(np.dot(outside_vectors, center_word_vec))
+    loss = -np.log(softmax_calc)[outside_word_idx]
+    grad_center_vec = -outside_vectors[outside_word_idx, :] + np.sum(softmax_calc[:, None] * outside_vectors, axis=1)
+    grad_outside_vecs = -np.dot(softmax_calc, center_word_vec.T)
+    grad_outside_vecs[outside_word_idx, :] = -1*grad_outside_vecs[outside_word_idx:]-center_word_vec
+    ### END YOUR CODE
+    return loss, grad_center_vec, grad_outside_vecs
+
     ### END YOUR CODE
 
     return loss, grad_center_vec, grad_outside_vecs
@@ -71,7 +79,13 @@ def neg_sampling_loss_and_gradient(
     indices = [outside_word_idx] + neg_sample_word_indices
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    sigmoid_calc = sigmoid(np.dot(outside_vectors, center_word_vec))
+    loss = -np.log(sigmoid_calc)[outside_word_idx, :]-np.sum(np.log(1-sigmoid_calc))[neg_sample_word_indices,:]
+    grad_center_vec = -1*(1-sigmoid_calc[outside_word_idx, :])*outside_vectors[outside_word_idx,:]+\
+                      np.sum(sigmoid_calc[neg_sample_word_indices, None]*outside_vectors[neg_sample_word_indices,:], axis=1)
+    grad_outside_vecs = np.dot(center_word_vec, sigmoid_calc.T)
+    grad_outside_vecs[outside_word_idx, :] = grad_outside_vecs[outside_word_idx, :]-center_word_vec
+    grad_outside_vecs = grad_outside_vecs[indices, :]
     ### END YOUR CODE
 
     return loss, grad_center_vec, grad_outside_vecs
@@ -108,13 +122,17 @@ def skipgram(current_center_word, outside_words, word2ind,
                         (dJ / dU in the pdf handout)
     """
     loss = 0.0
-    grad_center_vecs = np.zeros(center_word_vectors.shape)
-    grad_outside_vectors = np.zeros(outside_vectors.shape)
+    grad_center_vecs = np.zeros(center_word_vectors.shape)  # V*d
+    grad_outside_vectors = np.zeros(outside_vectors.shape)  # V*d
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    v_c = center_word_vectors[word2ind[current_center_word], :]
+    for w in outside_words:
+        loss_window, grad_center_vec_window, grad_outside_vecs_window = word2vec_loss_and_gradient(v_c, word2ind[current_center_word], outside_vectors, dataset)
+        loss += loss_window
+        grad_center_vecs[word2ind[current_center_word], :] = grad_center_vec_window
+        grad_outside_vectors += grad_outside_vecs_window
     ### END YOUR CODE
-
     return loss, grad_center_vecs, grad_outside_vectors
 
 
@@ -146,7 +164,7 @@ def word2vec_sgd_wrapper(word2vec_model, word2ind, word_vectors, dataset,
     return loss, grad
 
 
-def test_word2vec_basic():
+def some_test_word2vec_basic():
     """ Test the two word2vec implementations, before running on Stanford Sentiment Treebank """
     dataset = type('dummy', (), {})()
 
@@ -226,4 +244,4 @@ Gradient wrt Center Vectors (dJ/dV):
 
 
 if __name__ == "__main__":
-    test_word2vec_basic()
+    some_test_word2vec_basic()
