@@ -64,7 +64,15 @@ def your_softmax_test():
     """
     print("Running your tests...")
     ### YOUR OPTIONAL CODE HERE
-    pass
+    test1 = softmax(np.array([0, 0, 0, 0]))
+    print(test1)
+    ans1 = np.array([0.25, 0.25, 0.25, 0.25])
+    assert np.allclose(test1, ans1, rtol=1e-05, atol=1e-06)
+
+    test2 = softmax(np.array([[0, 0, 0, 0], [3, 3, 3, 3], [5, 5, 5, 5]]))
+    print(test2)
+    ans2 = np.array([[0.25, 0.25, 0.25, 0.25], [0.25, 0.25, 0.25, 0.25], [0.25, 0.25, 0.25, 0.25]])
+    assert np.allclose(test2, ans2, rtol=1e-05, atol=1e-06)
     ### END YOUR CODE
 
 

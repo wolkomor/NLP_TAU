@@ -40,16 +40,11 @@ def naive_softmax_loss_and_gradient(
     ### YOUR CODE HERE
     ### YOUR CODE HERE
     softmax_calc = softmax(np.dot(outside_vectors, center_word_vec)) ## vector of p(o|c) for o = 1,2, ... ,W
-    loss = -np.log(softmax_calc)[outside_word_idx] ## -log(p(oi|c))
+    loss = -np.log(softmax_calc[outside_word_idx]) ## -log(p(oi|c))
     grad_center_vec = -outside_vectors[outside_word_idx, :] + np.sum(softmax_calc[:, None] * outside_vectors, axis=0)
     grad_outside_vecs = np.dot(softmax_calc.reshape((-1, 1)), center_word_vec.reshape((1, -1)))
     grad_outside_vecs[outside_word_idx, :] = grad_outside_vecs[outside_word_idx, :]-center_word_vec
-
     ### END YOUR CODE
-    return loss, grad_center_vec, grad_outside_vecs
-
-    ### END YOUR CODE
-
     return loss, grad_center_vec, grad_outside_vecs
 
 
