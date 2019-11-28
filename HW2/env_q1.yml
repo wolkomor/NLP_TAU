@@ -1,0 +1,10 @@
+name: nlp-hw2-q1
+
+channels:
+  - defaults
+  - anaconda
+
+dependencies:
+  - python=3.7
+  - numpy
+  - pandas

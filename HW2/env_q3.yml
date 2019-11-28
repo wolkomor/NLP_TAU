@@ -1,0 +1,15 @@
+name: nlp-hw2-q3
+
+channels:
+  - defaults
+  - anaconda
+  - conda-forge
+  - pytorch
+
+dependencies:
+  - python=3.7
+  - jupyter
+  - nb_conda_kernels
+  - pytorch
+  - unidecode
+  - matplotlib
