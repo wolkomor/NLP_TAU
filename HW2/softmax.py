@@ -27,11 +27,9 @@ def softmax(x):
         # Vector
         ### YOUR CODE HERE
         # raise NotImplementedError
-        tmp = np.max(x)
-        x -= tmp
+        x -= np.max(x)
         x = np.exp(x)
-        tmp = np.sum(x)
-        x /= tmp
+        x /= np.sum(x)
         ### END YOUR CODE
 
     assert x.shape == orig_shape
