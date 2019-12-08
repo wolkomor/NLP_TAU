@@ -30,7 +30,7 @@ def forward(data, label, params, dimensions):
     ### YOUR CODE HERE: forward propagation
     h = sigmoid(np.dot(data, W1) + b1)  # 1*Dh
     y_hat = softmax(np.dot(h, W2) + b2)  # 1*Dy
-    probability = y_hat[:, label]  # (1,)
+    probability = y_hat[0, label]  # (1,)
     return probability
     ### END YOUR CODE
 
@@ -63,9 +63,8 @@ def forward_backward_prop(data, labels, params, dimensions):
     b2 = np.reshape(params[ofs:ofs + Dy], (1, Dy))
 
     ### YOUR CODE HERE: forward propagation
-    M = data.shape[0]
-    h = sigmoid(np.dot(data, W1)+b1.repeat(M, axis=0))  # M*Dh
-    y_hat = softmax(np.dot(h, W2)+b2.repeat(M, axis=0))  # M*Dy
+    h = sigmoid(np.dot(data, W1)+b1)  # M*Dh
+    y_hat = softmax(np.dot(h, W2)+b2)  # M*Dy
     cost = -np.sum(np.multiply(labels, np.log(y_hat)))  # 1*1
     ### END YOUR CODE
 

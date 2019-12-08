@@ -87,7 +87,7 @@ def lm_wrapper(in_word_index, out_word_index, num_to_word_embedding, dimensions,
     out_word_index = np.array(out_word_index)
     batch_index = np.random.choice(range(len(in_word_index)), size=BATCH_SIZE)
     out_words_indices = out_word_index[batch_index]
-    in_words_indices = out_word_index[batch_index]
+    in_words_indices = in_word_index[batch_index]
     data = num_to_word_embedding[in_words_indices]
     labels[range(BATCH_SIZE), out_words_indices] = 1.0
     cost, grad = forward_backward_prop(data, labels, params, dimensions)
@@ -113,7 +113,7 @@ def eval_neural_lm(eval_data_path):
     for i, word in enumerate(in_word_index):
         x = num_to_word_embedding[word]
         l+= np.log2(forward(x, out_word_index[i], params, dimensions))
-    perplexity = 2**-(l/num_of_examples)
+    perplexity = np.power(2, -(float(l)/num_of_examples))
     ### END YOUR CODE
 
     return perplexity
