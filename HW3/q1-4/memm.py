@@ -14,7 +14,8 @@ def build_extra_decoding_arguments(train_sents):
 
     extra_decoding_arguments = {}
     ### YOUR CODE HERE
-    raise NotImplementedError
+    #raise NotImplementedError
+    pass
     ### END YOUR CODE
 
     return extra_decoding_arguments
@@ -28,7 +29,14 @@ def extract_features_base(curr_word, next_word, prev_word, prevprev_word, prev_t
     features = {}
     features['word'] = curr_word
     ### YOUR CODE HERE
-    raise NotImplementedError
+    for i in range(min(5, len(curr_word))):
+        features['prefixes_{}'.format(i+1)] = curr_word[:i+1]
+        features['suffixes_{}'.format(i + 1)] = curr_word[-(i+1):]
+    features['trigrams'] = prev_tag +"_" +prevprev_tag
+    features['bigrams'] = prev_tag
+    features['previous_word'] = prev_word
+    features['previous_previous_word'] = prevprev_word
+    features['subsequent_word'] = next_word
     ### END YOUR CODE
     return features
 
@@ -71,8 +79,14 @@ def memm_greedy(sent, logreg, vec, index_to_tag_dict, extra_decoding_arguments):
         Returns: predicted tags for the sentence
     """
     predicted_tags = ["O"] * (len(sent))
+    sent[0] = (sent[0][0],'no_tag')
     ### YOUR CODE HERE
-    raise NotImplementedError
+    for i, word in enumerate(sent):
+        extracted_feat = extract_features(sent, i)
+        predicted_tag_index = logreg.predict(vectorize_features(vec, extracted_feat))[0]
+        predict_tag = index_to_tag_dict[predicted_tag_index]
+        predicted_tags[i] = predict_tag
+        sent[i] = (sent[i][0], predict_tag)
     ### END YOUR CODE
     return predicted_tags
 
@@ -82,8 +96,64 @@ def memm_viterbi(sent, logreg, vec, index_to_tag_dict, extra_decoding_arguments)
         Returns: predicted tags for the sentence
     """
     predicted_tags = ["O"] * (len(sent))
+
     ### YOUR CODE HERE
-    raise NotImplementedError
+    def get_prob_features(k, S_t, S_u, sent):
+        generated_examples = []
+        tags_product_2index = {}
+        extracted_feat = extract_features(sent, k)
+        for i, (_t, _u) in enumerate(np.dstack(np.meshgrid(S_t, S_u)).reshape(-1, 2)):
+            current_feat = extracted_feat.copy()
+            current_feat['trigrams'] = _u + "_" + _t
+            current_feat['bigrams'] = _u
+            generated_examples.append(current_feat)
+            tags_product_2index[(_t, _u)] = i
+        tags_product_probabilities = logreg.predict_log_proba(vectorize_features(vec, generated_examples))
+        return tags_product_2index, tags_product_probabilities
+
+    pai = defaultdict(dict)
+    pai[-1][("*", "*")] = 1
+    S = index_to_tag_dict.keys()
+    bp = {}
+    n = len(sent)
+    for k in range(n):  # word index in sentence
+        if k == 0:
+            S_t, S_u, S_v = ['*'], ['*'], S
+        elif k == 1:
+            S_t, S_u, S_v = ['*'], S, S
+        else:
+            S_t, S_u, S_v = S, S, S
+
+        tags_product_2index, tags_product_probabilities = get_prob_features(k, S_t, S_u, sent)
+
+        for u in S_u:  # previous tag
+            for v in S_v:  # current tag
+                max_val = -float('Inf')
+                best_tag = ""
+                for t in S_t:  # previous, previous tag
+                    q = tags_product_probabilities[tags_product_2index[(t, u)]][v]
+                    pai_t = pai[k - 1][(t, u)] * q
+                    if pai_t > max_val:
+                        max_val = pai_t
+                        best_tag = t
+                pai[k][(u, v)] = max_val
+                bp[(k, u, v)] = best_tag
+
+    max_bp_val = -float('Inf')
+
+    for u_, v_ in pai[n - 1]:
+        extracted_feat = extract_features(sent, n-1)
+        p = pai[n - 1][(u_, v_)]
+        if p > max_bp_val:
+            u, v = u_, v_
+            max_bp_val = p
+
+    if n == 1:
+        predicted_tags[n - 1] = v
+    else:
+        predicted_tags[-1], predicted_tags[-2] = v, u
+        for k in range(n - 3, -1, -1):
+            predicted_tags[k] = bp[(k + 2, predicted_tags[k + 1], predicted_tags[k + 2])]
     ### END YOUR CODE
     return predicted_tags
 
@@ -92,13 +162,8 @@ def memm_eval(test_data, logreg, vec, index_to_tag_dict, extra_decoding_argument
     Receives: test data set and the parameters learned by memm
     Returns an evaluation of the accuracy of Viterbi & greedy memm
     """
-    acc_viterbi, acc_greedy = 0.0, 0.0
+
     eval_start_timer = time.time()
-
-    correct_greedy_preds = 0
-    correct_viterbi_preds = 0
-    total_words_count = 0
-
     gold_tag_seqs = []
     greedy_pred_tag_seqs = []
     viterbi_pred_tag_seqs = []
@@ -107,7 +172,13 @@ def memm_eval(test_data, logreg, vec, index_to_tag_dict, extra_decoding_argument
         gold_tag_seqs.append(true_tags)
 
         ### YOUR CODE HERE
-        raise NotImplementedError
+        prediction_greedy = memm_greedy(sent, logreg, vec, index_to_tag_dict, extra_decoding_arguments)
+        prediction_viterbi = memm_viterbi(sent, logreg, vec, index_to_tag_dict, extra_decoding_arguments)
+        greedy_pred_tag_seqs.append(prediction_greedy)
+        viterbi_pred_tag_seqs.append(prediction_viterbi)
+
+        mask = true_tags==prediction_viterbi
+
         ### END YOUR CODE
 
     greedy_evaluation = evaluate_ner(gold_tag_seqs, greedy_pred_tag_seqs)
