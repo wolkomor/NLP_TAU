@@ -100,15 +100,17 @@ def memm_viterbi(sent, logreg, vec, index_to_tag_dict, extra_decoding_arguments)
     ### YOUR CODE HERE
     def get_prob_features(k, S_t, S_u, sent):
         generated_examples = []
+        tags_product_probabilities = []
         tags_product_2index = {}
         extracted_feat = extract_features(sent, k)
         for i, (_t, _u) in enumerate(np.dstack(np.meshgrid(S_t, S_u)).reshape(-1, 2)):
             current_feat = extracted_feat.copy()
             current_feat['trigrams'] = _u + "_" + _t
             current_feat['bigrams'] = _u
-            generated_examples.append(current_feat)
+            #generated_examples.append(current_feat)
             tags_product_2index[(_t, _u)] = i
-        tags_product_probabilities = logreg.predict_log_proba(vectorize_features(vec, generated_examples))
+            tag_probability = logreg.predict_log_proba(vectorize_features(vec, current_feat))
+            tags_product_probabilities.append(tag_probability)
         return tags_product_2index, tags_product_probabilities
 
     pai = defaultdict(dict)

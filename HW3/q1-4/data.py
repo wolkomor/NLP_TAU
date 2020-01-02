@@ -61,7 +61,7 @@ def evaluate_ner(gold_tag_seqs, pred_tag_seqs):
     token_cm = ConfusionMatrix(labels=NER_LBLS)
 
     correct_preds, total_correct, total_preds = 0., 0., 0.
-    for gold_tags, pred_tags  in zip(gold_tag_seqs, pred_tag_seqs):
+    for gold_tags, pred_tags in zip(gold_tag_seqs, pred_tag_seqs):
         for l, l_ in zip(gold_tags, pred_tags):
             token_cm.update(NER_LBLS.index(l), NER_LBLS.index(l_))
         gold = set(get_chunks(gold_tags))

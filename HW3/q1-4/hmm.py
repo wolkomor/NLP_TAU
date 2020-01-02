@@ -101,8 +101,8 @@ def hmm_eval(test_data, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e
     """
     import numpy as np
     hyper_search = {}
-    for lmbd1 in np.arange(0, 1.05, 0.05):
-        for lmbd2 in np.arange(0, 1.05, 0.05):
+    for lmbd1 in np.arange(0.9, 1.1, 0.02):
+        for lmbd2 in np.arange(0.0, 0.12, 0.02):
             if lmbd1+lmbd2<=1:
                 print("Start evaluation")
                 gold_tag_seqs = []
@@ -116,12 +116,13 @@ def hmm_eval(test_data, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e
                                 e_word_tag_counts, e_tag_counts, lambda1=lmbd1, lambda2=lmbd2)
                     pred_tag_seqs.append(prediction_list)
                     ### END YOUR CODE
-            token_cm, scores = evaluate_ner(gold_tag_seqs, pred_tag_seqs)
-            hyper_search[(lmbd1, lmbd2)] = scores[0]
-            with open('hyper_search_lambda.txt', 'a') as f:
-                f.write("{},{},{}".format(lmbd1, lmbd2, scores[0]))
+                token_cm, scores = evaluate_ner(gold_tag_seqs, pred_tag_seqs)
+                hyper_search[(lmbd1, lmbd2)] = scores[0]
+                with open('hyper_search_lambda.txt', 'a') as f:
+                    f.write("\n{},{},{}".format(lmbd1, lmbd2, scores[0]))
     print(max(hyper_search, key=hyper_search.get))
-
+    with open('hyper_search_lambda.txt', 'a') as f:
+        f.write("\n Optimal: {},{},{}".format(lmbd1, lmbd2, scores[0]))
     #return evaluate_ner(gold_tag_seqs, pred_tag_seqs)
 
 
