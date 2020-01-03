@@ -101,8 +101,8 @@ def hmm_eval(test_data, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e
     """
     import numpy as np
     hyper_search = {}
-    for lmbd1 in np.arange(0.9, 1.1, 0.02):
-        for lmbd2 in np.arange(0.0, 0.12, 0.02):
+    for lmbd1 in np.arange(0.9, 1.1, 0.1):
+        for lmbd2 in np.arange(0.0, 0.1, 0.1):
             if lmbd1+lmbd2<=1:
                 print("Start evaluation")
                 gold_tag_seqs = []
