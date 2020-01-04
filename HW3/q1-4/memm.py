@@ -12,10 +12,11 @@ def build_extra_decoding_arguments(train_sents):
     Returns: all extra arguments which your decoding procedures requires
     """
 
-    extra_decoding_arguments = {}
+    extra_decoding_arguments = defaultdict(set)
     ### YOUR CODE HERE
-    #raise NotImplementedError
-    pass
+    for sent in train_sents:
+        for word, tag in sent:
+            extra_decoding_arguments[word].add(tag)
     ### END YOUR CODE
 
     return extra_decoding_arguments
@@ -107,24 +108,30 @@ def memm_viterbi(sent, logreg, vec, index_to_tag_dict, extra_decoding_arguments)
             current_feat = extracted_feat.copy()
             current_feat['trigrams'] = _u + "_" + _t
             current_feat['bigrams'] = _u
-            #generated_examples.append(current_feat)
+            # generated_examples.append(current_feat)
             tags_product_2index[(_t, _u)] = i
             tag_probability = logreg.predict_log_proba(vectorize_features(vec, current_feat))
             tags_product_probabilities.append(tag_probability)
         return tags_product_2index, tags_product_probabilities
 
+    def get_tags_set(word, word_tag_set_dict):
+        S = list(word_tag_set_dict[word])
+        if len(S) == 0:
+            return ['O']
+        return S
+
     pai = defaultdict(dict)
-    pai[-1][("*", "*")] = 1
-    S = index_to_tag_dict.keys()
+    pai[-1][('*', '*')] = 1
+    S = list(index_to_tag_dict.keys())[:-1]
     bp = {}
     n = len(sent)
     for k in range(n):  # word index in sentence
         if k == 0:
-            S_t, S_u, S_v = ['*'], ['*'], S
+            S_t, S_u, S_v = ['*'], ['*'], get_tags_set(sent[k][0], extra_decoding_arguments)
         elif k == 1:
-            S_t, S_u, S_v = ['*'], S, S
+            S_t, S_u, S_v = ['*'], get_tags_set(sent[k-1][0], extra_decoding_arguments), get_tags_set(sent[k][0], extra_decoding_arguments)
         else:
-            S_t, S_u, S_v = S, S, S
+            S_t, S_u, S_v = get_tags_set(sent[k-2][0], extra_decoding_arguments), get_tags_set(sent[k-1][0], extra_decoding_arguments), get_tags_set(sent[k][0], extra_decoding_arguments)
 
         tags_product_2index, tags_product_probabilities = get_prob_features(k, S_t, S_u, sent)
 
@@ -133,8 +140,9 @@ def memm_viterbi(sent, logreg, vec, index_to_tag_dict, extra_decoding_arguments)
                 max_val = -float('Inf')
                 best_tag = ""
                 for t in S_t:  # previous, previous tag
-                    q = tags_product_probabilities[tags_product_2index[(t, u)]][v]
-                    pai_t = pai[k - 1][(t, u)] * q
+                    q = tags_product_probabilities[tags_product_2index[(t, u)]][0, tag_to_idx_dict[v]]
+                    # t_tag, v_tag = index_to_tag_dict[t], index_to_tag_dict[v]
+                    pai_t = pai[k - 1][(t, u)] + q
                     if pai_t > max_val:
                         max_val = pai_t
                         best_tag = t
@@ -169,6 +177,12 @@ def memm_eval(test_data, logreg, vec, index_to_tag_dict, extra_decoding_argument
     gold_tag_seqs = []
     greedy_pred_tag_seqs = []
     viterbi_pred_tag_seqs = []
+
+    # !!! - NEED TO BE DELETED BEFORE SUBMISSION: - !!!
+    mistakes = []
+    i = 0
+    # !!! - NEED TO BE DELETED BEFORE SUBMISSION: - !!!
+
     for sent in test_data:
         words, true_tags = zip(*sent)
         gold_tag_seqs.append(true_tags)
@@ -179,12 +193,31 @@ def memm_eval(test_data, logreg, vec, index_to_tag_dict, extra_decoding_argument
         greedy_pred_tag_seqs.append(prediction_greedy)
         viterbi_pred_tag_seqs.append(prediction_viterbi)
 
-        mask = true_tags==prediction_viterbi
-
+        # Errors Sampling from Viterbi
+        if i <= 50:
+            mask = np.array(true_tags) != np.array(prediction_viterbi)
+            if mask.sum() >= 1:
+                mistake_tags = list(zip(np.array(true_tags)[mask], np.array(prediction_viterbi)[mask],
+                                        np.array(words)[mask]))
+                mistakes.append((i, mistake_tags))
+                i += 1
         ### END YOUR CODE
 
     greedy_evaluation = evaluate_ner(gold_tag_seqs, greedy_pred_tag_seqs)
     viterbi_evaluation = evaluate_ner(gold_tag_seqs, viterbi_pred_tag_seqs)
+
+    # Mistakes log:
+    print("Mistakes log:")
+    print("-------------")
+    for mistake in mistakes:
+        index = mistake[0]
+        comparisons = mistake[1]
+        sentence = [w for (w, t) in test_data[index]]
+        print("Sentence: " + str(sentence))
+        for comp in comparisons:
+            print('token: ' + comp[2])
+            print("real value: " + str(comp[0]))
+            print("viterbi: " + str(comp[1]))
 
     return greedy_evaluation, viterbi_evaluation
 
