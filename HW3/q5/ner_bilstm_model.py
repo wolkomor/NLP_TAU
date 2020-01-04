@@ -81,18 +81,15 @@ class NerBiLstmModel(torch.nn.Module):
 
         self._dropout = torch.nn.Dropout(config.dropout)
         ### YOUR CODE HERE (3 lines)
-        #batch_first=True
-        self.word_embeddings = torch.nn.Embedding.from_pretrained(pretrained_embeddings)
-        self.lstm = torch.nn.LSTM(self.config.embed_size*self.config.n_features, self.config.hidden_size // 2, num_layers=1,
+        self.word_embeddings = torch.nn.Embedding.from_pretrained(pretrained_embeddings, freeze=False)
+        self.lstm = torch.nn.LSTM(self.config.embed_size*self.config.n_features,
+                                  self.config.hidden_size // 2,
+                                  num_layers=1,
                                   bidirectional=True,
-                                  batch_first=True, # if your input data is of shape (batch_size, seq_len, features) then you need batch_first=True
-                                  dropout=config.dropout)
+                                  batch_first=True)  # when input data is of shape (batch_size, seq_len, features)
 
         # Maps the output of the LSTM into tag space.
         self.hidden2tag = torch.nn.Linear(self.config.hidden_size, self.config.n_classes)
-        # initialize the hidden
-        self.hidden = torch.autograd.Variable(torch.zeros(1 * 2, self.config.batch_size, self.config.hidden_size// 2)),\
-                      torch.autograd.Variable(torch.zeros(1 * 2, self.config.batch_size, self.config.hidden_size// 2))
 
         ### END YOUR CODE
 
@@ -118,17 +115,35 @@ class NerBiLstmModel(torch.nn.Module):
         - tag_probs: A tensor of shape (batch_size, max_length, n_classes) which represents the probability
                      for each tag for each word in a sentence.
         """
+
         batch_size, seq_length = sentences.shape[0], sentences.shape[1]
         ### YOUR CODE HERE (5-9 lines)
-        embeds = self.word_embeddings(torch.LongTensor(sentences.long())) # dim: batch_size x batch_max_len x embedding_dim
+
+        # 1. embed the input
+        # Dim transformation: (batch_size, seq_len, n_features) -> (batch_size, seq_len, embedding_dim)
+        embeds = self.word_embeddings(sentences.long()) # dim: batch_size x batch_max_len x embedding_dim
+        embeds = embeds.view(batch_size, seq_length, -1)
         drop = self._dropout(embeds)
-        #lstm_out, self.hidden = self.lstm(drop.view(batch_size, seq_length, -1), self.hidden)
-        lstm_out, self.hidden = self.lstm(drop.view(drop.shape[0], drop.shape[1], -1), self.hidden)  # dim: batch_size x batch_max_len x lstm_hidden_dim
+
+        # 2. Run through RNN
+        # Dim transformation: (batch_size, seq_len, embedding_dim) -> (batch_size, seq_len, lstm_hidden_dim)
+        lstm_out, hidden = self.lstm(drop)
         lstm_out_drop = self._dropout(lstm_out)
-        # lstm_out = lstm_out.view(-1, lstm_out.shape[2]) # dim: batch_size*batch_max_len x lstm_hidden_dim
-        tag_space = self.hidden2tag(lstm_out_drop) # dim: batch_size x batch_max_len x num_tags
-        tag_probs = torch.nn.functional.log_softmax(tag_space, dim=2)  # dim: batch_size x batch_max_len x num_tags
-        #tag_probs = tag_probs.view(batch_size, seq_length, self.hidden_size, tag_probs.shape[1])
+
+        # 3. Project to tag space
+        # we need to reshape the data so it goes into the linear layer
+        # Dim: (batch_size * seq_len, lstm_hidden_dim)
+        lstm_out_drop = lstm_out_drop.contiguous()
+        lstm_out_drop = lstm_out_drop.view(-1, lstm_out_drop.shape[2])
+
+        tag_space = self.hidden2tag(lstm_out_drop) # dim: batch_size * batch_max_len x num_tags
+
+        # 4. Create logsoftmax activations bc we're doing multi-class calssification
+        tag_probs = torch.nn.functional.log_softmax(tag_space, dim=1)  # dim: batch_size * seq_len x n_classes
+
+        # reshape so we're back to (batch_size, seq_len, n_classes)
+        tag_probs = tag_probs.view(batch_size, seq_length, self.config.n_classes)
+
         ### END YOUR CODE
         return tag_probs
 
@@ -145,7 +160,7 @@ class Trainer(TrainerBase):
         super(Trainer, self).__init__(model, config, helper, logger)
 
         ### YOUR CODE HERE (1 line)
-        self._loss_function = torch.nn.CrossEntropyLoss()
+        self._loss_function = torch.nn.NLLLoss()
         ### END YOUR CODE
         self._optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
 
@@ -181,10 +196,9 @@ class Trainer(TrainerBase):
             loss: A 0-d tensor (scalar)
         """
         ### YOUR CODE HERE (3-6 lines)
-        #raise NotImplementedError
-        masked_tag_probs = tag_probs.masked_fill_(~masks.unsqueeze(2), float('-inf')) #batch_size, max_length, n_classes--> minibatch*max_length, classes
-        masked_tag_probs = masked_tag_probs.view((-1, masked_tag_probs.shape[2]))
-        masked_labels = labels.view((-1, 1)) # masked_labels # minibatch*max_length,1
+        masked_tag_probs = tag_probs[masks]
+        masked_labels = labels[masks]
+        masked_labels = masked_labels.long()
         ### END YOUR CODE
         loss = self._loss_function(masked_tag_probs, masked_labels)
         return loss
@@ -462,4 +476,5 @@ def main(arguments_str):
         ARGS.func(ARGS)
 
 if __name__ == "__main__":
-    main('test_training')
+    main('train')
+
