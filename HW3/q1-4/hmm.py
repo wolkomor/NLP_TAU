@@ -44,18 +44,32 @@ def hmm_viterbi(sent, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts,
     n = len(sent)
     predicted_tags = ["O"] * (n)
     ### YOUR CODE HERE
+
+    def pruning_tags(word_tag_cnt):
+        pruned_tags = defaultdict(set)
+        for word, tag in word_tag_cnt:
+            pruned_tags[word].add(tag)
+        return pruned_tags
+
+    def get_tags_set(word, word_tag_set_dict):
+        S = list(word_tag_set_dict[word])
+        if len(S) == 0:
+            return ['O']
+        return S
+
     pai = defaultdict(dict)
     pai[-1][("*", "*")] = 1
-    S = e_tag_counts.keys()
-    bp = {}
-    for k in range(n): # word index in sentence
 
-        if k==0:
-            S_w, S_u, S_v = ['*'], ['*'], S
-        elif k==1:
-            S_w, S_u, S_v = ['*'], S, S
+    prune_tags = pruning_tags(e_word_tag_counts)
+    bp = {}
+
+    for k in range(n):  # word index in sentence
+        if k == 0:
+            S_w, S_u, S_v = ['*'], ['*'], get_tags_set(sent[k][0], prune_tags)
+        elif k == 1:
+            S_w, S_u, S_v = ['*'], get_tags_set(sent[k-1][0], prune_tags), get_tags_set(sent[k][0], prune_tags)
         else:
-            S_w, S_u, S_v = S, S, S
+            S_w, S_u, S_v = get_tags_set(sent[k-2][0], prune_tags), get_tags_set(sent[k-1][0], prune_tags), get_tags_set(sent[k][0], prune_tags)
 
         for u in S_u:  # previous tag
             for v in S_v:  # current tag
@@ -101,9 +115,9 @@ def hmm_eval(test_data, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e
     """
     import numpy as np
     hyper_search = {}
-    for lmbd1 in np.arange(0.9, 1.1, 0.1):
-        for lmbd2 in np.arange(0.0, 0.1, 0.1):
-            if lmbd1+lmbd2<=1:
+    for lmbd1 in np.arange(0.5, 1, 0.05):
+        for lmbd2 in np.arange(0.05, 0.3, 0.05):
+            if lmbd1 + lmbd2 <= 1:
                 print("Start evaluation")
                 gold_tag_seqs = []
                 pred_tag_seqs = []
@@ -112,17 +126,21 @@ def hmm_eval(test_data, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts, e
                     gold_tag_seqs.append(true_tags)
 
                     ### YOUR CODE HERE
+                    # lmbd1 = 1/3
+                    # lmbd2 = 1/3
                     prediction_list = hmm_viterbi(sent, total_tokens, q_tri_counts, q_bi_counts, q_uni_counts,
                                 e_word_tag_counts, e_tag_counts, lambda1=lmbd1, lambda2=lmbd2)
                     pred_tag_seqs.append(prediction_list)
                     ### END YOUR CODE
                 token_cm, scores = evaluate_ner(gold_tag_seqs, pred_tag_seqs)
-                hyper_search[(lmbd1, lmbd2)] = scores[0]
+
+                print('HPT: ' + str(lmbd1) + ', ' + str(lmbd2) + ' = ' + str(scores[2]))
+                hyper_search[(lmbd1, lmbd2)] = scores[2]
                 with open('hyper_search_lambda.txt', 'a') as f:
-                    f.write("\n{},{},{}".format(lmbd1, lmbd2, scores[0]))
+                    f.write("\n{},{},{}".format(lmbd1, lmbd2, scores[2]))
     print(max(hyper_search, key=hyper_search.get))
     with open('hyper_search_lambda.txt', 'a') as f:
-        f.write("\n Optimal: {},{},{}".format(lmbd1, lmbd2, scores[0]))
+        f.write("\n Optimal: {},{},{}".format(lmbd1, lmbd2, scores[2]))
     #return evaluate_ner(gold_tag_seqs, pred_tag_seqs)
 
 
