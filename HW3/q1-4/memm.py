@@ -181,6 +181,7 @@ def memm_eval(test_data, logreg, vec, index_to_tag_dict, extra_decoding_argument
     # !!! - NEED TO BE DELETED BEFORE SUBMISSION: - !!!
     mistakes = []
     i = 0
+    j = 0
     # !!! - NEED TO BE DELETED BEFORE SUBMISSION: - !!!
 
     for sent in test_data:
@@ -199,8 +200,9 @@ def memm_eval(test_data, logreg, vec, index_to_tag_dict, extra_decoding_argument
             if mask.sum() >= 1:
                 mistake_tags = list(zip(np.array(true_tags)[mask], np.array(prediction_viterbi)[mask],
                                         np.array(words)[mask]))
-                mistakes.append((i, mistake_tags))
+                mistakes.append((j, mistake_tags))
                 i += 1
+            j += 1
         ### END YOUR CODE
 
     greedy_evaluation = evaluate_ner(gold_tag_seqs, greedy_pred_tag_seqs)
