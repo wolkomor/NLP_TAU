@@ -165,4 +165,4 @@ def main(arguments_str):
     start(parser.parse_args(args))
 
 if __name__ == "__main__":
-    main('--debug')
+    main(None)
