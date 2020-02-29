@@ -62,7 +62,8 @@ def some_test_gradcheck_basic():
     """
     Some basic sanity checks.
     """
-    quad = lambda x: (np.sum(x ** 2), 2*x)
+    #quad = lambda x: (np.sum(x ** 2), 2*x)
+    quad = lambda x: (np.sum(x ** 4), 4 * (x ** 3))
 
     print("Running sanity checks...")
     gradcheck_naive(quad, np.array(123.456))       # scalar test
@@ -80,7 +81,7 @@ def your_gradcheck_test():
     """
     print("Running your sanity checks...")
     ### YOUR OPTIONAL CODE HERE
-    quad = lambda x: (np.sum(x ** 4), 4 * x ** 3)
+    quad = lambda x: (np.sum(x ** 4), 4 * (x ** 3))
 
     print("Running sanity checks...")
     gradcheck_naive(quad, np.array(123.456))  # scalar test
@@ -92,4 +93,4 @@ def your_gradcheck_test():
 
 if __name__ == "__main__":
     some_test_gradcheck_basic()
-    your_gradcheck_test()
+    #your_gradcheck_test()
