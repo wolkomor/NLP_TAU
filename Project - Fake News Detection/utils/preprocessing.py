@@ -11,7 +11,7 @@ from sklearn.feature_extraction import DictVectorizer
 nltk.download('averaged_perceptron_tagger')
 nltk.download('vader_lexicon')
 
-def lexical_sentiment_features_extraction(text):
+def lexical_sentiment_features_extraction(text_tokenized):
     word_count = 0
     number_count = 0
     average_word_length = 0
@@ -20,9 +20,9 @@ def lexical_sentiment_features_extraction(text):
     count_exclamation = 0
     count_date = 0
 
-    tokenized = sent_tokenize(text)
-    total_sentences = len(tokenized)
-    for s in tokenized:
+    # tokenized = sent_tokenize(text)
+    total_sentences = len(text_tokenized)
+    for s in text_tokenized:
         s = nltk.word_tokenize(s)
         pos_text = nltk.pos_tag(s)
 
@@ -75,7 +75,7 @@ def sanity_check():
         print (lexical_sentiment_features_extraction(doc))
         print(sentiment_extraction(doc))
         print(categories_extraction(doc))
-    tfidf,X = tf_idf(docs,(1,2))
+    tfidf,X = tf_idf(docs, (1,2))
     feature_names = tfidf.get_feature_names()
     rows, cols = X.nonzero()
     for row, col in zip(rows, cols):
