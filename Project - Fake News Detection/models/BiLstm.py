@@ -2,11 +2,10 @@ import torch
 import torch.nn.functional as F
 
 class MultipleInputModel(torch.nn.Module):
-    def __init__(self, helper, config, pretrained_embeddings):
+    def __init__(self, config):
         super(MultipleInputModel, self).__init__()
-        self.config = config
         self.NN_model = config.NN_model
-        self.linear = torch.nn.Linear(self.config.hidden_size, self.config.n_classes) # TODO: check new size for layer input
+        self.linear = torch.nn.Linear(config.hidden_size, config.n_classes) # TODO: check new size for layer input
 
     def forward(self, sentences, meta_data_feat):
         NN_output = self.NN_model(sentences)

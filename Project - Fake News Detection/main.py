@@ -2,7 +2,7 @@ import os
 import time
 import torch.nn.functional as F
 import torch
-from models.BiLstm import BiLstmModel
+from models.BiLstm import BiLstmModel,MultipleInputModel
 import numpy as np
 from torch import nn, optim
 from utils.configuration import Config
@@ -183,6 +183,7 @@ def get_base_config():
                 weight_decay=5e-4,
                 momentum=0.9,
                 seed=5,
+                n_classes=2,
                 seq_max_len=500,
                 embedding_dim=300,
                 milestones=[150],
@@ -200,8 +201,11 @@ TEXT, vocab_size, word_embeddings, train_iter, valid_iter =\
 
 exp_name = "BiLSTM_with_features"
 config.add_attributes(model_name=exp_name)
-model = BiLstmModel(batch_size, hidden_size, config, word_embeddings)
-trainer = Trainer(model, config)
+# TODO:  replace BiLstmModel with MultipleInputModel
+model_bilstm = BiLstmModel(batch_size, hidden_size, config, word_embeddings)
+config.add_attributes(NN_model=model_bilstm)
+model_multipleInput = MultipleInputModel(config)
+trainer = Trainer(model_multipleInput, config)
 trainer.fit(train_iter, valid_iter, config)
 
 
