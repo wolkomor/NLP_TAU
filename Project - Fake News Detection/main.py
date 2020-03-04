@@ -1,16 +1,12 @@
 import os
 import time
-import load_data
-import torch
 import torch.nn.functional as F
-from torch.autograd import Variable
-import torch.optim as optim
+import torch
+from models.BiLstm import BiLstmModel
 import numpy as np
 from torch import nn, optim
-import torch.nn.functional as F
-from models.LSTM import LSTMClassifier
 from utils.configuration import Config
-TEXT, vocab_size, word_embeddings, train_iter, valid_iter, test_iter = load_data.load_dataset()
+from utils.data_utils import load_dataset
 from pathlib import Path
 
 def clip_gradient(model, clip_value):
@@ -42,7 +38,6 @@ class Trainer:
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.sgd_spv_matrix = {}
         self.eps = config.eps
-        self.per_sample_prediction = None
         if torch.cuda.is_available():
             self.model.to(self.device)
 
@@ -89,10 +84,15 @@ class Trainer:
             if weights_path.exists() and self.upload_model:
                 epoch_train_loss = self.load_checkpoint(weights_path, epoch)
             else:
-                epoch_train_loss, epoch_train_acc = self.train_model(trainloader)
-            epoch_valid_loss, epoch_valid__acc = self.eval_model(validloader)
+                epoch_train_loss, epoch_train_acc = self.train_model(trainloader, epoch)
+            epoch_valid_loss, epoch_valid__acc = self.eval_model(validloader, epoch)
             self.record(epoch, train_loss=epoch_train_loss, validation_loss=epoch_valid_loss)
             #self.save_checkpoint(weights_path, epoch_train_loss)
+
+    def clip_gradient(self, clip_value):
+        params = list(filter(lambda p: p.grad is not None, self.model.parameters()))
+        for p in params:
+            p.grad.data.clamp_(-clip_value, clip_value)
 
     def train_model(self, train_iter, epoch):
         total_epoch_loss, total_epoch_acc, steps = 0, 0, 0
@@ -114,7 +114,7 @@ class Trainer:
             acc = 100.0 * num_corrects / len(batch)
 
             loss.backward()
-            clip_gradient(model, 1e-1)
+            self.clip_gradient(1e-1)
             self.optimizer.step()
 
             self.save_checkpoint(acc, epoch)
@@ -130,7 +130,7 @@ class Trainer:
         return total_epoch_loss / len(train_iter), total_epoch_acc / len(train_iter)
 
 
-    def eval_model(self, val_iter):
+    def eval_model(self, val_iter, epoch):
         total_epoch_loss, total_epoch_acc = 0, 0
         self.model.eval()
         with torch.no_grad():
@@ -154,13 +154,11 @@ class Trainer:
 
         return total_epoch_loss / len(val_iter), total_epoch_acc / len(val_iter)
 
-ROOT_PATH = '/BiLSTM/'
+ROOT_PATH = '/models/'
 MODEL_WEIGHTS_DIR = 'model_weights'
 GRAPHS_FOLDER_NAME = 'graphs'
-PER_SAMPLE_RESULTS_DIR = 'per_samples_results'
 model_weights_dir = f"{ROOT_PATH}{MODEL_WEIGHTS_DIR}"
 graphs_dir = f"{ROOT_PATH}{GRAPHS_FOLDER_NAME}"
-sample_results_dir = f"{ROOT_PATH}{PER_SAMPLE_RESULTS_DIR}"
 SAVE_FIGS = True
 BATCH_SIZE = 32
 learning_rate = 2e-5
@@ -178,11 +176,15 @@ def get_base_config():
   # if needed, can be modified to upload the 'best model'
   return Config(lr=2e-5,
                 epochs=100,
+                dropout=0.3,
                 eps=0.00001,
                 step_size=2,
                 gamma=0.001,
                 weight_decay=5e-4,
                 momentum=0.9,
+                seed=5,
+                seq_max_len=500,
+                embedding_dim=300,
                 milestones=[150],
                 save_points=[100, 150, 170],
                 save_model=SAVE_TO_CHECKPOINTS,
@@ -190,9 +192,16 @@ def get_base_config():
                 model_weights_path=model_weights_dir,
                 batch_size=BATCH_SIZE)
 
-model = LSTMClassifier(batch_size, output_size, hidden_size, vocab_size, embedding_length, word_embeddings)
-trainer = Trainer(model, Config)
+
+config = get_base_config()
+TEXT, vocab_size, word_embeddings, train_iter, valid_iter =\
+    load_dataset(r"C:\Users\or\PycharmProjects\NLP_TAU\Project - Fake News Detection\Fake-news-detection-ny+guar+kaggle\DataSets\nyt_unclean - Copy.csv", config.embedding_dim,
+                 config.seq_max_len, config.seed)
+
 exp_name = "BiLSTM_with_features"
-trainer.fit(train_iter, valid_iter, exp_name)
+config.add_attributes(model_name=exp_name)
+model = BiLstmModel(batch_size, hidden_size, config, word_embeddings)
+trainer = Trainer(model, config)
+trainer.fit(train_iter, valid_iter, config)
 
 

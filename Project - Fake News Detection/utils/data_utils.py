@@ -101,7 +101,7 @@ def load_dataset(path, glove_dim, doc_length, SEED):
     #fields = [('text', TEXT) ('class', LABEL)]
     #train_data = data.Dataset(examples=,fields=fields)
 
-    fields = [('text', TEXT), (None, None), (None, None), ('class', LABEL)]
+    fields = [('text', TEXT), (None, None), (None, None), ('label', LABEL)]
     train_data = data.TabularDataset(path=path, format='csv', fields=fields, skip_header=True)
 
     # Initialized embedding
@@ -126,5 +126,3 @@ def load_dataset(path, glove_dim, doc_length, SEED):
 
     vocab_size = len(TEXT.vocab)
     return TEXT, vocab_size, word_embeddings, train_iter, valid_iter
-
-load_dataset(r"C:\Users\or\PycharmProjects\NLP_TAU\Project - Fake News Detection\Fake-news-detection-ny+guar+kaggle\DataSets\nyt_unclean - Copy.csv",300,200,5)
