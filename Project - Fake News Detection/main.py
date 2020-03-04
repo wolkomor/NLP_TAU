@@ -35,6 +35,7 @@ class Trainer:
         self.save_points = config.save_points
         self.optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=config.weight_decay,
                                    momentum=self.momentum)
+        #optim = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
         torch.manual_seed(self.seed)
         self.criterion = nn.NLLLoss(reduction='none')
         self.results = {}
@@ -46,28 +47,24 @@ class Trainer:
             self.model.to(self.device)
 
     def train_model(self, train_iter, epoch):
-        total_epoch_loss = 0
-        total_epoch_acc = 0
-        optim = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
-        steps = 0
+        total_epoch_loss, total_epoch_acc, steps = 0, 0, 0
         self.model.train()
         for idx, batch in enumerate(train_iter):
             text = batch.text[0]
             target = batch.label
             target = torch.autograd.Variable(target).long()
-            if torch.cuda.is_available():
-                text = text.cuda()
-                target = target.cuda()
+            text = text.to(self.device)
+            target = target.to(self.device)
             if (text.size()[0] is not self.batch_size):  # One of the batch returned by BucketIterator has length different than 32.
                 continue
-            optim.zero_grad()
-            prediction = model(text)
-            loss = loss_fn(prediction, target)
+            self.optimizer.zero_grad()
+            prediction = self.model(text)
+            loss = self.criterion(prediction, target)
             num_corrects = (torch.max(prediction, 1)[1].view(target.size()).data == target.data).float().sum()
             acc = 100.0 * num_corrects / len(batch)
             loss.backward()
             clip_gradient(model, 1e-1)
-            optim.step()
+            self.optimizer.step()
             steps += 1
 
             if steps % 100 == 0:
@@ -81,8 +78,7 @@ class Trainer:
 
 
     def eval_model(self, val_iter):
-        total_epoch_loss = 0
-        total_epoch_acc = 0
+        total_epoch_loss, total_epoch_acc = 0, 0
         self.model.eval()
         with torch.no_grad():
             for idx, batch in enumerate(val_iter):
@@ -91,20 +87,16 @@ class Trainer:
                     continue
                 target = batch.label
                 target = torch.autograd.Variable(target).long()
-                if torch.cuda.is_available():
-                    text = text.cuda()
-                    target = target.cuda()
-                prediction = model(text)
-                loss = loss_fn(prediction, target)
+                text = text.to(self.device)
+                target = target.to(self.device)
+                prediction = self.model(text)
+                loss = self.criterion(prediction, target)
                 num_corrects = (torch.max(prediction, 1)[1].view(target.size()).data == target.data).sum()
                 acc = 100.0 * num_corrects / len(batch)
                 total_epoch_loss += loss.item()
                 total_epoch_acc += acc.item()
 
         return total_epoch_loss / len(val_iter), total_epoch_acc / len(val_iter)
-
-
-
 
 ROOT_PATH = '/BiLSTM/'
 MODEL_WEIGHTS_DIR = 'model_weights'
