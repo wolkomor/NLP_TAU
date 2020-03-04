@@ -1,20 +1,12 @@
 import torch
-from defs import NONE, LMAP, NUM, UNK, EMBED_SIZE
 import os
 import re
-import csv
-import codecs
-import numpy as np
-import pandas as pd
 import random
-from string import punctuation
-from collections import defaultdict
 from torchtext import data
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
 from torchtext.vocab import Vectors, GloVe
-from torchtext.data import get_tokenizer
-from dateutil.parser import parse
+
 
 def text_to_wordlist(text, remove_stopwords=False, stem_words=False):
     # Clean the text, with the option to remove stopwords and to stem words.
