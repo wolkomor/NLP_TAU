@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from models.LSTM import LSTMClassifier
 from utils.configuration import Config
 TEXT, vocab_size, word_embeddings, train_iter, valid_iter, test_iter = load_data.load_dataset()
-
+from pathlib import Path
 
 def clip_gradient(model, clip_value):
     params = list(filter(lambda p: p.grad is not None, model.parameters()))
@@ -37,7 +37,7 @@ class Trainer:
                                    momentum=self.momentum)
         #optim = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
         torch.manual_seed(self.seed)
-        self.criterion = nn.NLLLoss(reduction='none')
+        self.criterion = torch.nn.BCELoss(reduction='none')
         self.results = {}
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.sgd_spv_matrix = {}
@@ -45,6 +45,54 @@ class Trainer:
         self.per_sample_prediction = None
         if torch.cuda.is_available():
             self.model.to(self.device)
+
+    def calc_accuracy(self, log_ps, labels):
+        self.model.eval()
+        ps = torch.exp(log_ps)
+        top_p, top_class = ps.topk(1, dim=1)
+        equals = top_class == labels.view(*top_class.shape)
+        acc = torch.mean(equals.type(torch.FloatTensor))
+        self.model.train()
+        return acc
+
+    def save_checkpoint(self, measure, epoch):
+        weights_path_model = Path(f"{self.model_weights_path}/{self.model_name}_{epoch}_seed_{self.seed}.pth")
+        if (epoch in self.save_points) and (not weights_path_model.exists()) and self.save_model:
+            print('saving_model: ')
+            torch.save({'model_state_dict': self.model.state_dict(),
+                        'optimizer_state_dict': self.optimizer.state_dict(), 'loss': measure}, weights_path_model)
+
+    def load_checkpoint(self, weights_path, epoch):
+        checkpoint = torch.load(weights_path)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.model.to(self.device)
+        loss = checkpoint['loss']
+        print(f"Uploaded weights succesfuly at epoch number {epoch}")
+        return loss
+
+    def record(self, epoch, **kwargs):
+        epoch = "{:02d}".format(epoch)
+        temp = f"| epoch   # {epoch} :"
+        for key, value in kwargs.items():
+            key = f"{self.model_name}_{key}"
+            if not self.results.get(key):
+                self.results[key] = []
+            self.results[key].append(value)
+            val = '{:.2f}'.format(np.round(value, 2))
+            temp += f"{key} : {val}      |       "
+        print(temp)
+
+    def fit(self, trainloader, validloader, config):
+        for epoch in range(1, self.epochs + 1):
+            weights_path = Path(f"{self.model_weights_path}/{config.model_name}_{epoch}.pth")
+            if weights_path.exists() and self.upload_model:
+                epoch_train_loss = self.load_checkpoint(weights_path, epoch)
+            else:
+                epoch_train_loss, epoch_train_acc = self.train_model(trainloader)
+            epoch_valid_loss, epoch_valid__acc = self.eval_model(validloader)
+            self.record(epoch, train_loss=epoch_train_loss, validation_loss=epoch_valid_loss)
+            #self.save_checkpoint(weights_path, epoch_train_loss)
 
     def train_model(self, train_iter, epoch):
         total_epoch_loss, total_epoch_acc, steps = 0, 0, 0
@@ -60,13 +108,18 @@ class Trainer:
             self.optimizer.zero_grad()
             prediction = self.model(text)
             loss = self.criterion(prediction, target)
+
+            # calculate accuracy
             num_corrects = (torch.max(prediction, 1)[1].view(target.size()).data == target.data).float().sum()
             acc = 100.0 * num_corrects / len(batch)
+
             loss.backward()
             clip_gradient(model, 1e-1)
             self.optimizer.step()
-            steps += 1
 
+            self.save_checkpoint(acc, epoch)
+
+            steps += 1
             if steps % 100 == 0:
                 print(
                     f'Epoch: {epoch + 1}, Idx: {idx + 1}, Training Loss: {loss.item():.4f}, Training Accuracy: {acc.item(): .2f}%')
@@ -83,7 +136,7 @@ class Trainer:
         with torch.no_grad():
             for idx, batch in enumerate(val_iter):
                 text = batch.text[0]
-                if (text.size()[0] is not 32):
+                if (text.size()[0] is not self.batch_size):
                     continue
                 target = batch.label
                 target = torch.autograd.Variable(target).long()
@@ -91,8 +144,11 @@ class Trainer:
                 target = target.to(self.device)
                 prediction = self.model(text)
                 loss = self.criterion(prediction, target)
+
+                # calculate accuracy
                 num_corrects = (torch.max(prediction, 1)[1].view(target.size()).data == target.data).sum()
                 acc = 100.0 * num_corrects / len(batch)
+
                 total_epoch_loss += loss.item()
                 total_epoch_acc += acc.item()
 
@@ -126,7 +182,6 @@ def get_base_config():
                 step_size=2,
                 gamma=0.001,
                 weight_decay=5e-4,
-                dropout_std_n_times=15,
                 momentum=0.9,
                 milestones=[150],
                 save_points=[100, 150, 170],
@@ -136,36 +191,8 @@ def get_base_config():
                 batch_size=BATCH_SIZE)
 
 model = LSTMClassifier(batch_size, output_size, hidden_size, vocab_size, embedding_length, word_embeddings)
-train = (model)
+trainer = Trainer(model, Config)
+exp_name = "BiLSTM_with_features"
+trainer.fit(train_iter, valid_iter, exp_name)
 
-for epoch in range(10):
-    train_loss, train_acc = train.train_model(train_iter, epoch)
-    val_loss, val_acc = train.eval_model(valid_iter)
 
-    print(
-        f'Epoch: {epoch + 1:02}, Train Loss: {train_loss:.3f}, Train Acc: {train_acc:.2f}%, Val. Loss: {val_loss:3f}, Val. Acc: {val_acc:.2f}%')
-
-# test_loss, test_acc = eval_model(model, test_iter)
-# print(f'Test Loss: {test_loss:.3f}, Test Acc: {test_acc:.2f}%')
-#
-# ''' Let us now predict the sentiment on a single sentence just for the testing purpose. '''
-# test_sen1 = "This is one of the best creation of Nolan. I can say, it's his magnum opus. Loved the soundtrack and especially those creative dialogues."
-# test_sen2 = "Ohh, such a ridiculous movie. Not gonna recommend it to anyone. Complete waste of time and money."
-#
-# test_sen1 = TEXT.preprocess(test_sen1)
-# test_sen1 = [[TEXT.vocab.stoi[x] for x in test_sen1]]
-#
-# test_sen2 = TEXT.preprocess(test_sen2)
-# test_sen2 = [[TEXT.vocab.stoi[x] for x in test_sen2]]
-#
-# test_sen = np.asarray(test_sen1)
-# test_sen = torch.LongTensor(test_sen)
-# test_tensor = Variable(test_sen, volatile=True)
-# test_tensor = test_tensor.cuda()
-# model.eval()
-# output = model(test_tensor, 1)
-# out = F.softmax(output, 1)
-# if (torch.argmax(out[0]) == 1):
-#     print("Sentiment: Positive")
-# else:
-#     print("Sentiment: Negative")
