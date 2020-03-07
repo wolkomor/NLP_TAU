@@ -6,7 +6,8 @@ from torchtext import data
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
 from torchtext.vocab import Vectors, GloVe
-
+from gensim.models import Doc2Vec
+import multiprocessing
 
 def text_to_wordlist(text, remove_stopwords=False, stem_words=False):
     # Clean the text, with the option to remove stopwords and to stem words.
@@ -96,30 +97,38 @@ def load_dataset(path, glove_dim, doc_length, SEED):
     #tokenize = lambda x: x.split()
     #tokenize = get_tokenizer("basic_english")
     TEXT = data.Field(sequential=True, tokenize=text_to_wordlist, lower=False, include_lengths=True, batch_first=True,
-                      fix_length=doc_length, init_token="<SOA>", eos_token="<EOA>")
+                      fix_length=None, init_token="<SOA>", eos_token="<EOA>")
     LABEL = data.LabelField()
     #fields = [('text', TEXT) ('class', LABEL)]
     #train_data = data.Dataset(examples=,fields=fields)
 
-    fields = [('text', TEXT), (None, None), (None, None), ('label', LABEL)]
+    fields = [('text', TEXT), ('label', LABEL)]
     train_data = data.TabularDataset(path=path, format='csv', fields=fields, skip_header=True)
 
     # Initialized embedding
     if not os.path.exists(".vector_cache"):
         os.mkdir(".vector_cache")
+
+    train_data, valid_data = train_data.split(split_ratio=0.7, random_state=random.seed(SEED))
+
+    cores = multiprocessing.cpu_count()
+    PV_DBOW_model = Doc2Vec(dm=0, vector_size=100, negative=5, hs=0, min_count=2, sample=0,
+            epochs=20, workers=cores)
+    PV_DBOW_model.build_vocab(train_data)
+
     TEXT.build_vocab(train_data, min_freq=3, vectors=GloVe(name='6B', dim=glove_dim))
                      #vectors = Vectors(name=f"\data\glove.6B\glove.6B.{glove_dim}d.txt"))
     LABEL.build_vocab(train_data)
 
     #printing
-    word_embeddings = TEXT.vocab.vectors
+    word_embeddings = TEXT.vocab.vectors #pretrained_embedding
     print("Length of Text Vocabulary: " + str(len(TEXT.vocab))) #No. of unique tokens in text
     print("Vector size of Text Vocabulary: ", TEXT.vocab.vectors.size())
     print("Label Length: " + str(len(LABEL.vocab))) #No. of unique tokens in label
     print(TEXT.vocab.freqs.most_common(10)) #Commonly used words
     print(TEXT.vocab.stoi) #Word dictionary
 
-    train_data, valid_data = train_data.split(split_ratio=0.7, random_state=random.seed(SEED))  # Further splitting of training_data to create new training_data & validation_data
+    # train_data, valid_data = train_data.split(split_ratio=0.7, random_state=random.seed(SEED))  # Further splitting of training_data to create new training_data & validation_data
     train_iter, valid_iter = data.BucketIterator.splits((train_data, valid_data), batch_size=32,
                                                                    sort_key=lambda x: len(x.text), repeat=False,
                                                                    shuffle=True)

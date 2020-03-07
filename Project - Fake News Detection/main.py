@@ -2,12 +2,18 @@ import os
 import time
 import torch.nn.functional as F
 import torch
-from models.BiLstm import BiLstmModel,MultipleInputModel
+from models.BiLstm import BiLstmModel
+from models.BiLstmMultiInputs import MultipleInputModel
 import numpy as np
 from torch import nn, optim
 from utils.configuration import Config
 from utils.data_utils import load_dataset
 from pathlib import Path
+import pandas as pd
+import glob
+
+
+os.chdir(os.getcwd())
 
 def clip_gradient(model, clip_value):
     params = list(filter(lambda p: p.grad is not None, model.parameters()))
@@ -33,6 +39,8 @@ class Trainer:
                                    momentum=self.momentum)
         #optim = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()))
         torch.manual_seed(self.seed)
+        torch.cuda.manual_seed(self.seed)
+        torch.backends.cudnn.deterministic = True
         self.criterion = torch.nn.BCELoss(reduction='none')
         self.results = {}
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -98,15 +106,16 @@ class Trainer:
         total_epoch_loss, total_epoch_acc, steps = 0, 0, 0
         self.model.train()
         for idx, batch in enumerate(train_iter):
-            text = batch.text[0]
+            # retrieve text and no. of words
+            text, text_lengths = batch.text
             target = batch.label
             target = torch.autograd.Variable(target).long()
             text = text.to(self.device)
             target = target.to(self.device)
-            if (text.size()[0] is not self.batch_size):  # One of the batch returned by BucketIterator has length different than 32.
-                continue
+            # if (text.size()[0] is not self.batch_size):  # One of the batch returned by BucketIterator has length different than 32.
+            #     continue
             self.optimizer.zero_grad()
-            prediction = self.model(text)
+            prediction = self.model(text,text_lengths)
             loss = self.criterion(prediction, target)
 
             # calculate accuracy
@@ -135,14 +144,14 @@ class Trainer:
         self.model.eval()
         with torch.no_grad():
             for idx, batch in enumerate(val_iter):
-                text = batch.text[0]
-                if (text.size()[0] is not self.batch_size):
-                    continue
+                text, text_lengths = batch.text
+                # if (text.size()[0] is not self.batch_size):
+                #     continue
                 target = batch.label
                 target = torch.autograd.Variable(target).long()
                 text = text.to(self.device)
                 target = target.to(self.device)
-                prediction = self.model(text)
+                prediction = self.model(text, text_lengths)
                 loss = self.criterion(prediction, target)
 
                 # calculate accuracy
@@ -184,6 +193,7 @@ def get_base_config():
                 momentum=0.9,
                 seed=5,
                 n_classes=2,
+                hidden_size=100,
                 seq_max_len=500,
                 embedding_dim=300,
                 milestones=[150],
@@ -194,18 +204,25 @@ def get_base_config():
                 batch_size=BATCH_SIZE)
 
 
+ROOT_PATH_DATA = r"Fake-news-detection-ny+guar+kaggle/DataSets/"
+
 config = get_base_config()
+path_data = Path(f"{ROOT_PATH_DATA}combined_data.csv")
+extension = 'csv'
+filenames = [i for i in glob.glob(f"{ROOT_PATH_DATA}*.{extension}")]
+if not path_data.exists():
+    combined_csv = pd.concat([pd.read_csv(f, usecols=["text", "class"]) for f in filenames])
+    combined_csv.to_csv("combined_data.csv", index=False)
+
 TEXT, vocab_size, word_embeddings, train_iter, valid_iter =\
-    load_dataset(r"C:\Users\or\PycharmProjects\NLP_TAU\Project - Fake News Detection\Fake-news-detection-ny+guar+kaggle\DataSets\nyt_unclean - Copy.csv", config.embedding_dim,
+    load_dataset(f"{ROOT_PATH_DATA}combined_data.csv", config.embedding_dim,
                  config.seq_max_len, config.seed)
 
-exp_name = "BiLSTM_with_features"
+exp_name = "BiLSTM"
 config.add_attributes(model_name=exp_name)
 # TODO:  replace BiLstmModel with MultipleInputModel
-model_bilstm = BiLstmModel(batch_size, hidden_size, config, word_embeddings)
-config.add_attributes(NN_model=model_bilstm)
-model_multipleInput = MultipleInputModel(config)
-trainer = Trainer(model_multipleInput, config)
+model_bilstm = BiLstmModel(hidden_size, config, word_embeddings.cuda())
+#config.add_attributes(NN_model=model_bilstm)
+#model_multipleInput = MultipleInputModel(config)
+trainer = Trainer(model_bilstm, config)
 trainer.fit(train_iter, valid_iter, config)
-
-
