@@ -6,7 +6,7 @@ from models.BiLstm import BiLstmModel
 from models.BiLstmMultiInputs import MultipleInputModel
 import numpy as np
 from torch import nn, optim
-from utils.configuration import Config
+from utils.configuration import get_base_config
 from utils.data_utils import load_dataset
 from pathlib import Path
 import pandas as pd
@@ -163,65 +163,22 @@ class Trainer:
 
         return total_epoch_loss / len(val_iter), total_epoch_acc / len(val_iter)
 
-ROOT_PATH = '/models/'
-MODEL_WEIGHTS_DIR = 'model_weights'
-GRAPHS_FOLDER_NAME = 'graphs'
-model_weights_dir = f"{ROOT_PATH}{MODEL_WEIGHTS_DIR}"
-graphs_dir = f"{ROOT_PATH}{GRAPHS_FOLDER_NAME}"
-SAVE_FIGS = True
-BATCH_SIZE = 32
-learning_rate = 2e-5
-batch_size = 32
-output_size = 2
-hidden_size = 256
-embedding_length = 300
-
-def get_base_config():
-  ####################################################################
-  # model consistency options
-  SAVE_TO_CHECKPOINTS = True # if ture, saves model.name_epcoch file into the weights folder
-  LOAD_CHECKPOINTS = True # # if ture, every epoch tries to load pretrained weights
-  ####################################################################
-  # if needed, can be modified to upload the 'best model'
-  return Config(lr=2e-5,
-                epochs=100,
-                dropout=0.3,
-                eps=0.00001,
-                step_size=2,
-                gamma=0.001,
-                weight_decay=5e-4,
-                momentum=0.9,
-                seed=5,
-                n_classes=2,
-                hidden_size=100,
-                seq_max_len=500,
-                embedding_dim=300,
-                milestones=[150],
-                save_points=[100, 150, 170],
-                save_model=SAVE_TO_CHECKPOINTS,
-                upload_model=LOAD_CHECKPOINTS,
-                model_weights_path=model_weights_dir,
-                batch_size=BATCH_SIZE)
-
-
-ROOT_PATH_DATA = r"Fake-news-detection-ny+guar+kaggle/DataSets/"
-
 config = get_base_config()
-path_data = Path(f"{ROOT_PATH_DATA}combined_data.csv")
+path_data = Path(f"{config.ROOT_PATH_DATA}combined_data.csv")
 extension = 'csv'
-filenames = [i for i in glob.glob(f"{ROOT_PATH_DATA}*.{extension}")]
+filenames = [i for i in glob.glob(f"{config.ROOT_PATH_DATA}*.{extension}")]
 if not path_data.exists():
     combined_csv = pd.concat([pd.read_csv(f, usecols=["text", "class"]) for f in filenames])
     combined_csv.to_csv("combined_data.csv", index=False)
 
 TEXT, vocab_size, word_embeddings, train_iter, valid_iter =\
-    load_dataset(f"{ROOT_PATH_DATA}combined_data.csv", config.embedding_dim,
+    load_dataset(f"{config.ROOT_PATH_DATA}combined_data.csv", config.embedding_dim,
                  config.seq_max_len, config.seed)
 
 exp_name = "BiLSTM"
 config.add_attributes(model_name=exp_name)
 # TODO:  replace BiLstmModel with MultipleInputModel
-model_bilstm = BiLstmModel(hidden_size, config, word_embeddings.cuda())
+model_bilstm = BiLstmModel(config, word_embeddings.cuda())
 #config.add_attributes(NN_model=model_bilstm)
 #model_multipleInput = MultipleInputModel(config)
 trainer = Trainer(model_bilstm, config)
