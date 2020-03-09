@@ -11,7 +11,7 @@ from utils.data_utils import load_dataset
 from pathlib import Path
 import pandas as pd
 import glob
-
+from utils.EarlyStopping import EarlyStopping
 
 os.chdir(os.getcwd())
 
@@ -42,6 +42,8 @@ class Trainer:
         torch.cuda.manual_seed(self.seed)
         torch.backends.cudnn.deterministic = True
         self.criterion = torch.nn.BCELoss(reduction='none')
+        # initialize the early_stopping object
+        self.early_stopping = EarlyStopping(patience=config.patience, verbose=True)
         self.results = {}
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.sgd_spv_matrix = {}
@@ -93,9 +95,17 @@ class Trainer:
                 epoch_train_loss = self.load_checkpoint(weights_path, epoch)
             else:
                 epoch_train_loss, epoch_train_acc = self.train_model(trainloader, epoch)
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=self.milestones,
+                                                            gamma=self.gamma, last_epoch=epoch)
             epoch_valid_loss, epoch_valid__acc = self.eval_model(validloader, epoch)
             self.record(epoch, train_loss=epoch_train_loss, validation_loss=epoch_valid_loss)
-            #self.save_checkpoint(weights_path, epoch_train_loss)
+            self.save_checkpoint(weights_path, epoch_train_acc)
+            self.scheduler.step()
+            self.early_stopping(epoch_valid_loss)
+
+            if self.early_stopping.early_stop:
+                print("Early stopping")
+                break
 
     def clip_gradient(self, clip_value):
         params = list(filter(lambda p: p.grad is not None, self.model.parameters()))
@@ -125,8 +135,6 @@ class Trainer:
             loss.backward()
             self.clip_gradient(1e-1)
             self.optimizer.step()
-
-            self.save_checkpoint(acc, epoch)
 
             steps += 1
             if steps % 100 == 0:
@@ -179,7 +187,6 @@ exp_name = "BiLSTM"
 config.add_attributes(model_name=exp_name)
 # TODO:  replace BiLstmModel with MultipleInputModel
 model_bilstm = BiLstmModel(config, word_embeddings.cuda())
-#config.add_attributes(NN_model=model_bilstm)
-#model_multipleInput = MultipleInputModel(config)
+#model_multipleInput = MultipleInputModel(config, word_embeddings.cuda())
 trainer = Trainer(model_bilstm, config)
 trainer.fit(train_iter, valid_iter, config)
