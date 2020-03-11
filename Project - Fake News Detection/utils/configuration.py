@@ -1,5 +1,7 @@
 from os import mkdir
 from os.path import isdir
+import numpy as np
+import torch
 
 class Config:
   """Holds model hyperparams and data information.
@@ -25,10 +27,10 @@ def get_base_config():
   graphs_dir = f"{ROOT_PATH}{GRAPHS_FOLDER_NAME}"
   SAVE_FIGS = True
   ####################################################################
-  BATCH_SIZE = 32
+  BATCH_SIZE = 128
   output_size = 2
-  hidden_size = 256
-  embedding_length = 300
+  hidden_size = 100
+  embedding_length = 100
   ####################################################################
   # model consistency options
   SAVE_TO_CHECKPOINTS = True # if true, saves model.name_epcoch file into the weights folder
@@ -36,25 +38,28 @@ def get_base_config():
   ####################################################################
   # if needed, can be modified to upload the 'best model'
   #learning_rate = 2e-5
-  return Config(lr=0.1,
-                epochs=50,
+  return Config(lr=0.001,
+                epochs=200,
                 dropout=0.3,
                 eps=0.00001,
                 step_size=2,
-                gamma=0.001,
+                gamma=0.1,
                 weight_decay=5e-4,
                 momentum=0.9,
                 seed=5,
                 n_classes=2,
                 hidden_size=hidden_size,
+                patience=5,
                 seq_max_len=500,
-                embedding_dim=300,
-                milestones=[150],
-                save_points=[100, 150, 170],
+                embedding_dim=embedding_length,
+                milestones=[10],
+                save_points=np.arange(1,5)*50,
                 save_model=SAVE_TO_CHECKPOINTS,
                 upload_model=LOAD_CHECKPOINTS,
                 model_weights_path=model_weights_dir,
-                batch_size=BATCH_SIZE)
+                ROOT_PATH_DATA=ROOT_PATH_DATA,
+                batch_size=BATCH_SIZE,
+                device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu"))
 
 def create_directories(l):
   for directory_path in l:

@@ -45,9 +45,9 @@ class Trainer:
         # initialize the early_stopping object
         self.early_stopping = EarlyStopping(patience=config.patience, verbose=True)
         self.results = {}
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.sgd_spv_matrix = {}
         self.eps = config.eps
+        self.device = config.device
         if torch.cuda.is_available():
             self.model.to(self.device)
 
@@ -172,21 +172,14 @@ class Trainer:
         return total_epoch_loss / len(val_iter), total_epoch_acc / len(val_iter)
 
 config = get_base_config()
-path_data = Path(f"{config.ROOT_PATH_DATA}combined_data.csv")
-extension = 'csv'
-filenames = [i for i in glob.glob(f"{config.ROOT_PATH_DATA}*.{extension}")]
-if not path_data.exists():
-    combined_csv = pd.concat([pd.read_csv(f, usecols=["text", "class"]) for f in filenames])
-    combined_csv.to_csv("combined_data.csv", index=False)
-
-TEXT, vocab_size, word_embeddings, train_iter, valid_iter =\
-    load_dataset(f"{config.ROOT_PATH_DATA}combined_data.csv", config.embedding_dim,
+vocab_size, word_embeddings, train_iter, valid_iter =\
+    load_dataset(f"{config.ROOT_PATH_DATA}combined_data_sample_tokenized.csv", config.embedding_dim,
                  config.seq_max_len, config.seed)
 
 exp_name = "BiLSTM"
 config.add_attributes(model_name=exp_name)
 # TODO:  replace BiLstmModel with MultipleInputModel
-model_bilstm = BiLstmModel(config, word_embeddings.cuda())
+model_bilstm = BiLstmModel(config, word_embeddings)
 #model_multipleInput = MultipleInputModel(config, word_embeddings.cuda())
 trainer = Trainer(model_bilstm, config)
 trainer.fit(train_iter, valid_iter, config)

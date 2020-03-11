@@ -70,15 +70,16 @@ def sanity_check():
     text = "Hello my name is OR and born in 18/12/1992 !"
     text2 = "I am beautiful number 1"
     text3 = "I want to hit him"
-    docs = [text,text2,text3]
+    docs = [text, text2, text3]
     for doc in docs:
         print (lexical_sentiment_features_extraction(doc))
         print(sentiment_extraction(doc))
         print(categories_extraction(doc))
-    tfidf,X = tf_idf(docs, (1,2))
+    tfidf, X = tf_idf(docs, (1,2))
     feature_names = tfidf.get_feature_names()
     rows, cols = X.nonzero()
     for row, col in zip(rows, cols):
         print((feature_names[col], row), X[row, col])
 
-sanity_check()
+if __name__ == "__main__":
+    sanity_check()
